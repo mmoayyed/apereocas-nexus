@@ -1,4 +1,5 @@
-#!/usr/bin/env bash
+#!/bin/sh
+set -eu
 
 heroku login
 heroku stack:set container -a apereocas-nexus

@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 PORT="${PORT:-8081}"
 NEXUS_DATA="${NEXUS_DATA:-/nexus-data}"
