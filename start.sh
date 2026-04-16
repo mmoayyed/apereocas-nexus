@@ -1,6 +1,15 @@
 #!/bin/sh
 set -eu
 
+# heroku config:set \
+#   NEXUS_ADMIN_PASSWORD='...' \
+#   NEXUS_PROXY_USER='...' \
+#   NEXUS_PROXY_PASSWORD='...' \
+#   NEXUS_PROXY_EMAIL='mm1844@gmail.com' \
+#   NEXUS_PROXY_FIRSTNAME='Misagh' \
+#   NEXUS_PROXY_LASTNAME='Moayyed' \
+#   -a apereocas-nexus
+
 PORT="${PORT:-8081}"
 NEXUS_DATA="${NEXUS_DATA:-/nexus-data}"
 BASE_URL="http://127.0.0.1:${PORT}"
