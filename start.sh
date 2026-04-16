@@ -4,7 +4,9 @@ set -eu
 PORT="${PORT:-8081}"
 NEXUS_DATA="${NEXUS_DATA:-/nexus-data}"
 BASE_URL="http://127.0.0.1:${PORT}"
+
 ADMIN_USER="admin"
+ADMIN_PASSWORD=""
 
 mkdir -p "${NEXUS_DATA}/etc"
 
@@ -38,8 +40,15 @@ wait_for_file() {
 wait_for_http() {
   i=0
   while [ "$i" -lt 300 ]; do
-    if curl -fsS "${BASE_URL}/service/rest/v1/status/check" >/dev/null 2>&1; then
-      return 0
+    if [ -n "${ADMIN_PASSWORD}" ]; then
+      if curl -fsS -u "${ADMIN_USER}:${ADMIN_PASSWORD}" \
+        "${BASE_URL}/service/rest/v1/status/check" >/dev/null 2>&1; then
+        return 0
+      fi
+    else
+      if curl -fsS "${BASE_URL}/" >/dev/null 2>&1; then
+        return 0
+      fi
     fi
     i=$((i + 1))
     sleep 2
@@ -69,6 +78,58 @@ nexus_api() {
 escape_json() {
   # minimal escaping for quotes and backslashes
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+repo_exists() {
+  repo_name="$1"
+  curl -fsS -u "${ADMIN_USER}:${ADMIN_PASSWORD}" \
+    "${BASE_URL}/service/rest/v1/repositories/${repo_name}" >/dev/null 2>&1
+}
+
+create_maven_proxy_repo() {
+  repo_name="$1"
+  remote_url="$2"
+  version_policy="$3"   # RELEASE or SNAPSHOT
+
+  if repo_exists "${repo_name}"; then
+    log "Repository ${repo_name} already exists"
+    return 0
+  fi
+
+  log "Creating Maven proxy repository ${repo_name} -> ${remote_url}"
+
+  curl -fsS -u "${ADMIN_USER}:${ADMIN_PASSWORD}" \
+    -X POST \
+    -H "Content-Type: application/json" \
+    "${BASE_URL}/service/rest/v1/repositories/maven/proxy" \
+    -d "{
+      \"name\": \"${repo_name}\",
+      \"online\": true,
+      \"storage\": {
+        \"blobStoreName\": \"default\",
+        \"strictContentTypeValidation\": true
+      },
+      \"cleanup\": null,
+      \"proxy\": {
+        \"remoteUrl\": \"${remote_url}\",
+        \"contentMaxAge\": 1440,
+        \"metadataMaxAge\": 1440
+      },
+      \"negativeCache\": {
+        \"enabled\": true,
+        \"timeToLive\": 1440
+      },
+      \"httpClient\": {
+        \"blocked\": false,
+        \"autoBlock\": true
+      },
+      \"routingRule\": null,
+      \"maven\": {
+        \"versionPolicy\": \"${version_policy}\",
+        \"layoutPolicy\": \"STRICT\",
+        \"contentDisposition\": \"INLINE\"
+      }
+    }" >/dev/null
 }
 
 bootstrap_nexus() {
@@ -142,6 +203,10 @@ EOF
   nexus_api PUT "/service/rest/v1/security/anonymous" \
     '{"enabled":false,"userId":"anonymous","realmName":"NexusAuthorizingRealm"}' \
     "application/json" >/dev/null
+
+
+  create_maven_proxy_repo "shibboleth-releases" "https://build.shibboleth.net/maven/releases/" "RELEASE"
+  create_maven_proxy_repo "shibboleth-snapshots" "https://build.shibboleth.net/maven/snapshots/" "SNAPSHOT"
 
   log "Bootstrap complete"
 }
